@@ -15,9 +15,15 @@ builder.Services.AddDbContext<StudentDatabaseContext>(options =>
     string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     options.UseSqlServer(connectionString);
 });
+builder.Services.AddDbContext<CourseDatabaseContext>(options =>
+{
+    string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    options.UseSqlServer(connectionString);
+});
 
 // 2. Add Repository Patterns
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
+builder.Services.AddScoped<ICourseRepository, CourseRepository>();
 
 
 // 4. AutoMapper

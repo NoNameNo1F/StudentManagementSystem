@@ -1,6 +1,7 @@
 using AutoMapper;
 using StudentManagementAPI.Models.Dtos;
 using StudentManagementAPI.Models.Dtos.StudentDto;
+using StudentManagementAPI.Models.Dtos.CourseDto;
 
 namespace StudentManagementAPI.Models.StudentMSMapper
 {
@@ -9,6 +10,7 @@ namespace StudentManagementAPI.Models.StudentMSMapper
         {
             CreateMap<Student, StudentDto>().ReverseMap();
             CreateMap<Student, StudentCreateDto>().ReverseMap();
+            CreateMap<Course, CourseDto>().ReverseMap();
         }
     }
 }
