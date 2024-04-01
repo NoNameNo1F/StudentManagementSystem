@@ -9,5 +9,8 @@ namespace StudentManagementAPI.Models
         [Column(TypeName = "char")]
         [StringLength(10)]
         public string? StudentId {get; set;}
+        [Required]
+        [DataType(DataType.DateTime)]
+        public DateTime YearEntrance {get; set;}
     }
 }
