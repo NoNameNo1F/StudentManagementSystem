@@ -3,12 +3,27 @@ using StudentManagementAPI.Repositories.IRepositories;
 using StudentManagementAPI.Datas;
 using StudentManagementAPI.Models.StudentMSMapper;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
+using StudentManagementAPI.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+// 4a. Serilog || ILogging DI Service
+// Log.Logger = new LoggerConfiguration().MinimumLevel.Debug()
+//     .WriteTo.File
+//     (
+//         "Logs/studentMSLogs.txt",
+//         rollingInterval:RollingInterval.Day
+//     ).CreateLogger();
+// builder.Host.UseSerilog();
 
-builder.Services.AddControllers();
+
+
+builder.Services.AddControllers(option =>
+{
+    // option.ReturnHttpNotAcceptable=true;
+}).AddXmlDataContractSerializerFormatters();
 // 1. Setup DbContext
 builder.Services.AddDbContext<StudentDatabaseContext>(options =>
 {
@@ -26,8 +41,11 @@ builder.Services.AddScoped<IStudentRepository, StudentRepository>();
 builder.Services.AddScoped<ICourseRepository, CourseRepository>();
 
 
-// 4. AutoMapper
+// 3. AutoMapper
 builder.Services.AddAutoMapper(typeof(StudentMSMappings));
+// 4b. ILogging DI Service
+builder.Services.AddSingleton<ILogging, Logging>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -39,7 +57,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-// 3. Use Swagger
+// 5. Use Swagger
 // app.UseSwagger();
 // app.UseSwaggerUI(options =>
 //     {

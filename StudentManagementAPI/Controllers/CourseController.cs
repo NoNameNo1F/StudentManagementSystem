@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using StudentManagementAPI.Logging;
 using StudentManagementAPI.Models;
 using StudentManagementAPI.Models.Dtos.CourseDto;
 using StudentManagementAPI.Repositories.IRepositories;
@@ -15,11 +16,11 @@ namespace StudentManagementAPI.Controllers
     {
         private ICourseRepository _courseRepo;
         private readonly IMapper _mapper;
-        private ILogger<CourseController> _logger;
+        private ILogging _logger;
 
         public CourseController(
             ICourseRepository courseRepo,
-            ILogger<CourseController> logger,
+            ILogging logger,
             IMapper mapper)
         {
             _courseRepo = courseRepo;
@@ -41,6 +42,8 @@ namespace StudentManagementAPI.Controllers
             {
                 courseDto.Add(_mapper.Map<CourseDto>(course));
             }
+
+            _logger.Log("Get all courses","info");
             return Ok(courseDto);
         }
         /// <summary>
@@ -58,10 +61,13 @@ namespace StudentManagementAPI.Controllers
             var courseObj = _courseRepo.GetCourse(courseId);
 
             if(courseObj == null)
+            {
+                _logger.Log($"Course id {courseId} not exists","error");
                 return NotFound();
+            }
 
             var coursetDto = _mapper.Map<CourseDto>(courseObj);
-
+            _logger.Log($"Get course id {courseId}", "info");
             return Ok(coursetDto);
         }
         /// <summary>
@@ -78,27 +84,32 @@ namespace StudentManagementAPI.Controllers
         {
             if(courseDto == null)
             {
+                _logger.Log($"Not having Course to creating", "error");
                 return BadRequest(ModelState);
             }
 
             if(_courseRepo.ExistsCourseByName(courseDto.Name))
             {
+                _logger.Log($"Course Name {courseDto.Name} already exists", "error");
                 ModelState.AddModelError("", "CourseName is Exists");
                 return StatusCode(404, ModelState);
             }
 
             if(!ModelState.IsValid)
             {
+                _logger.Log($"Course needed to be created not valid!", "error");
                 return BadRequest(ModelState);
             }
 
             var courseObj = _mapper.Map<Course>(courseDto);
             if(!_courseRepo.CreateCourse(courseObj))
             {
+                _logger.Log($"Course can't be created!", "error");
                 ModelState.AddModelError("", $"Something went wrong when saving record {courseObj.Name}");
                 return StatusCode(500, ModelState);
             }
 
+            _logger.Log($"Created Course is {courseObj.Id}", "info");
             return CreatedAtRoute("GetCourse", new
             {
                 courseId = courseObj.Id
@@ -118,6 +129,7 @@ namespace StudentManagementAPI.Controllers
         {
             if(courseDto == null|| courseId != courseDto.Id)
             {
+                _logger.Log($"Not having Course to updating", "error");
                 return BadRequest(ModelState);
             }
 
@@ -125,10 +137,12 @@ namespace StudentManagementAPI.Controllers
 
             if(!_courseRepo.UpdateCourse(courseObj))
             {
+                _logger.Log($"Course can't be updated!", "error");
                 ModelState.AddModelError("",$"Something went wrong when saving record {courseObj.Id}");
                 return StatusCode(500, ModelState);
             }
 
+            _logger.Log($"Updated Course Id: {courseObj.Id} successfully!", "info");
             return NoContent();
         }
         /// <summary>
@@ -143,18 +157,21 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public IActionResult DeleteCourse(int courseId)
         {
-            if(courseId == null)
-            {
-                return NotFound();
-            }
+            // if(courseId)
+            // {
+            //     _logger.LogError($"Course id {courseId} not exists");
+            //     return NotFound();
+            // }
 
             var courseObj = _courseRepo.GetCourse(courseId);
             if(!_courseRepo.DeleteCourse(courseObj))
             {
+                _logger.Log($"Course can't be deleted!", "error");
                 ModelState.AddModelError("",$"Something went wrong when deleting record {courseObj.Id}");
                 return StatusCode(500, ModelState);
             }
 
+            _logger.Log($"Deleted Course Id: {courseId} successfully!", "info");
             return NoContent();
         }
     }
