@@ -11,6 +11,7 @@ namespace StudentManagementAPI.Models.StudentMSMapper
             CreateMap<Student, StudentDto>().ReverseMap();
             CreateMap<Student, StudentCreateDto>().ReverseMap();
             CreateMap<Course, CourseDto>().ReverseMap();
+            CreateMap<Course, CourseCreateDto>().ReverseMap();
         }
     }
 }
