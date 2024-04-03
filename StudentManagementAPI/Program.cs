@@ -25,12 +25,7 @@ builder.Services.AddControllers(option =>
     // option.ReturnHttpNotAcceptable=true;
 }).AddXmlDataContractSerializerFormatters();
 // 1. Setup DbContext
-builder.Services.AddDbContext<StudentDatabaseContext>(options =>
-{
-    string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    options.UseSqlServer(connectionString);
-});
-builder.Services.AddDbContext<CourseDatabaseContext>(options =>
+builder.Services.AddDbContext<ApplicationDatabaseContext>(options =>
 {
     string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     options.UseSqlServer(connectionString);
