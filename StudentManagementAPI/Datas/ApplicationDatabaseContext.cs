@@ -3,9 +3,9 @@ using StudentManagementAPI.Models;
 
 namespace StudentManagementAPI.Datas
 {
-    public class StudentDatabaseContext : DbContext
+    public class ApplicationDatabaseContext : DbContext
     {
-        public StudentDatabaseContext(DbContextOptions<StudentDatabaseContext> options) : base(options)
+        public ApplicationDatabaseContext(DbContextOptions<ApplicationDatabaseContext> options) : base(options)
         {
             //
         }
@@ -18,5 +18,6 @@ namespace StudentManagementAPI.Datas
             base.OnModelCreating(modelBuilder);
         }
         public DbSet<Student> Students { get; set; }
+        public DbSet<Course> Courses { get; set; }
     }
 }
