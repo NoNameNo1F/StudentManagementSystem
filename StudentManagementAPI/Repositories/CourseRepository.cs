@@ -1,56 +1,24 @@
+using System.Linq.Expressions;
 using StudentManagementAPI.Datas;
 using StudentManagementAPI.Models;
 using StudentManagementAPI.Repositories.IRepositories;
 
 namespace StudentManagementAPI.Repositories
 {
-    public class CourseRepository : ICourseRepository
+    public class CourseRepository : Repository<Course> , ICourseRepository
     {
-        private readonly CourseDatabaseContext _courseDbContext;
-        public CourseRepository(CourseDatabaseContext courseDbContext)
+        private readonly ApplicationDatabaseContext _db;
+        public CourseRepository(ApplicationDatabaseContext db) : base(db)
         {
-            _courseDbContext = courseDbContext;
-        }
-        public ICollection<Course> GetCourses()
-        {
-            return _courseDbContext.Courses.OrderBy(x => x.Id).ToList();
-        }
-        public Course GetCourse(int id)
-        {
-            return _courseDbContext.Courses.FirstOrDefault(x => x.Id == id);
+            _db = db;
         }
 
-        public bool ExistsCourseById(int id)
+        public async Task<Course> UpdateAsync(Course course)
         {
-            return _courseDbContext.Courses.Any(x => x.Id == id);
+            _db.Courses.Update(course);
+            await _db.SaveChangesAsync();
+            return course;
         }
 
-        public bool ExistsCourseByName(string name)
-        {
-            return _courseDbContext.Courses.Any(x => x.Name.ToLower().Trim() == name.ToLower().Trim());
-        }
-
-        public bool CreateCourse(Course course)
-        {
-            _courseDbContext.Courses.Add(course);
-            return Save();
-        }
-
-        public bool UpdateCourse(Course course)
-        {
-            _courseDbContext.Courses.Update(course);
-            return Save();
-        }
-
-        public bool DeleteCourse(Course course)
-        {
-            _courseDbContext.Courses.Remove(course);
-            return Save();
-        }
-
-        public bool Save()
-        {
-            return _courseDbContext.SaveChanges() >= 0 ? true : false;
-        }
     }
 }
