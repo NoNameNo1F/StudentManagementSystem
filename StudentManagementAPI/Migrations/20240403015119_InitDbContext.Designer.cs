@@ -11,9 +11,9 @@ using StudentManagementAPI.Datas;
 
 namespace StudentManagementAPI.Migrations
 {
-    [DbContext(typeof(StudentDatabaseContext))]
-    [Migration("20240329203221_AddStudentDbContext")]
-    partial class AddStudentDbContext
+    [DbContext(typeof(ApplicationDatabaseContext))]
+    [Migration("20240403015119_InitDbContext")]
+    partial class InitDbContext
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,26 @@ namespace StudentManagementAPI.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("StudentManagementAPI.Models.Course", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Courses");
+                });
 
             modelBuilder.Entity("StudentManagementAPI.Models.Student", b =>
                 {
@@ -55,6 +75,9 @@ namespace StudentManagementAPI.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("char");
+
+                    b.Property<DateTime>("YearEntrance")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
