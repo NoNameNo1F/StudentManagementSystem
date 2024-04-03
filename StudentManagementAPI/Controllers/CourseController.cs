@@ -33,15 +33,10 @@ namespace StudentManagementAPI.Controllers
         /// <returns>List of Course</returns>
         [HttpGet]
         [ProducesResponseType(200, Type = typeof(List<CourseDto>))]
-        public IActionResult GetCourses()
+        public async Task<ActionResult<IEnumerable<CourseDto>>> GetCourses()
         {
-            var courseList = _courseRepo.GetCourses();
-            var courseDto = new List<CourseDto>();
-
-            foreach (var course in courseList)
-            {
-                courseDto.Add(_mapper.Map<CourseDto>(course));
-            }
+            var courseList = await _courseRepo.GetAllAsync();
+            var courseDto = _mapper.Map<List<CourseDto>>(courseList);
 
             _logger.Log("Get all courses","info");
             return Ok(courseDto);
@@ -56,9 +51,9 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(404)]
         [Authorize]
         [ProducesDefaultResponseType]
-        public IActionResult GetCourse(int courseId)
+        public async Task<ActionResult<CourseDto>> GetCourse(int courseId)
         {
-            var courseObj = _courseRepo.GetCourse(courseId);
+            var courseObj = await _courseRepo.GetAsync(u => u.Id == courseId);
 
             if(courseObj == null)
             {
@@ -73,24 +68,24 @@ namespace StudentManagementAPI.Controllers
         /// <summary>
         /// Create a new course
         /// </summary>
-        /// <param name="courseDto"></param>
+        /// <param name="courseCreateDto"></param>
         /// <returns></returns>
         [HttpPost]
         [ProducesResponseType(201, Type = typeof(CourseDto))]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult CreateCourse([FromBody] CourseDto courseDto)
+        public async Task<ActionResult<CourseDto>> CreateCourse([FromBody] CourseCreateDto courseCreateDto)
         {
-            if(courseDto == null)
+            if(courseCreateDto == null)
             {
                 _logger.Log($"Not having Course to creating", "error");
                 return BadRequest(ModelState);
             }
 
-            if(_courseRepo.ExistsCourseByName(courseDto.Name))
+            if(await _courseRepo.GetAsync(u => u.Name.ToLower() == courseCreateDto.Name.ToLower()) != null)
             {
-                _logger.Log($"Course Name {courseDto.Name} already exists", "error");
+                _logger.Log($"Course Name {courseCreateDto.Name} already exists", "error");
                 ModelState.AddModelError("", "CourseName is Exists");
                 return StatusCode(404, ModelState);
             }
@@ -101,14 +96,14 @@ namespace StudentManagementAPI.Controllers
                 return BadRequest(ModelState);
             }
 
-            var courseObj = _mapper.Map<Course>(courseDto);
-            if(!_courseRepo.CreateCourse(courseObj))
-            {
-                _logger.Log($"Course can't be created!", "error");
-                ModelState.AddModelError("", $"Something went wrong when saving record {courseObj.Name}");
-                return StatusCode(500, ModelState);
-            }
-
+            var courseObj = _mapper.Map<Course>(courseCreateDto);
+            // if(!_courseRepo.CreateCourse(courseObj))
+            // {
+            //     _logger.Log($"Course can't be created!", "error");
+            //     ModelState.AddModelError("", $"Something went wrong when saving record {courseObj.Name}");
+            //     return StatusCode(500, ModelState);
+            // }
+            await _courseRepo.CreateAsync(courseObj);
             _logger.Log($"Created Course is {courseObj.Id}", "info");
             return CreatedAtRoute("GetCourse", new
             {
@@ -125,7 +120,7 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(204)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult UpdateCourse(int courseId, [FromBody] CourseDto courseDto)
+        public async Task<IActionResult> UpdateCourse(int courseId, [FromBody] CourseDto courseDto)
         {
             if(courseDto == null|| courseId != courseDto.Id)
             {
@@ -135,12 +130,7 @@ namespace StudentManagementAPI.Controllers
 
             var courseObj = _mapper.Map<Course>(courseDto);
 
-            if(!_courseRepo.UpdateCourse(courseObj))
-            {
-                _logger.Log($"Course can't be updated!", "error");
-                ModelState.AddModelError("",$"Something went wrong when saving record {courseObj.Id}");
-                return StatusCode(500, ModelState);
-            }
+            await _courseRepo.UpdateAsync(courseObj);
 
             _logger.Log($"Updated Course Id: {courseObj.Id} successfully!", "info");
             return NoContent();
@@ -155,21 +145,22 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult DeleteCourse(int courseId)
+        public async Task<IActionResult> DeleteCourse(int courseId)
         {
-            // if(courseId)
-            // {
-            //     _logger.LogError($"Course id {courseId} not exists");
-            //     return NotFound();
-            // }
-
-            var courseObj = _courseRepo.GetCourse(courseId);
-            if(!_courseRepo.DeleteCourse(courseObj))
+            if(courseId == 0)
             {
-                _logger.Log($"Course can't be deleted!", "error");
-                ModelState.AddModelError("",$"Something went wrong when deleting record {courseObj.Id}");
-                return StatusCode(500, ModelState);
+                _logger.Log($"Not having courseId", "error");
+                return BadRequest();
             }
+
+            var courseObj = await _courseRepo.GetAsync(u => u.Id == courseId);
+            if(courseObj == null)
+            {
+                _logger.Log($"Course id {courseId} not exists", "error");
+                return NotFound();
+            }
+
+            await _courseRepo.RemoveAsync(courseObj);
 
             _logger.Log($"Deleted Course Id: {courseId} successfully!", "info");
             return NoContent();

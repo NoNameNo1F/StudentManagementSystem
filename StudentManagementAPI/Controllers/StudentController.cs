@@ -34,16 +34,12 @@ namespace StudentManagementAPI.Controllers
         /// <returns></returns>
         [HttpGet]
         [ProducesResponseType(200, Type = typeof(List<StudentDto>))]
-        public IActionResult GetStudents()
+        public async Task<ActionResult<IEnumerable<StudentDto>>> GetStudents()
         {
-            var studentList = _studentRepo.GetStudents();
+            var studentList = await _studentRepo.GetAllAsync();
             var studentDto = new List<StudentDto>();
 
-            foreach (var student in studentList)
-            {
-                studentDto.Add(_mapper.Map<StudentDto>(student));
-            }
-
+            studentDto = _mapper.Map<List<StudentDto>>(studentList);
             _logger.Log("Get all students", "info");
             return Ok(studentDto);
         }
@@ -57,9 +53,9 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(404)]
         [Authorize]
         [ProducesDefaultResponseType]
-        public IActionResult GetStudent(int studentId)
+        public async Task<ActionResult<StudentDto>> GetStudent(int studentId)
         {
-            var studentObj = _studentRepo.GetStudent(studentId);
+            var studentObj = await _studentRepo.GetAsync(u => u.Id == studentId);
 
             if(studentObj == null)
             {
@@ -80,7 +76,7 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult CreateStudent([FromBody] StudentCreateDto studentCreateDto)
+        public async Task<ActionResult<StudentDto>> CreateStudent([FromBody] StudentCreateDto studentCreateDto)
         {
             if(studentCreateDto == null)
             {
@@ -88,7 +84,7 @@ namespace StudentManagementAPI.Controllers
                 return BadRequest(ModelState);
             }
 
-            if(_studentRepo.ExistsStudentByStudentId(studentCreateDto.StudentId))
+            if(await _studentRepo.GetAsync(u => u.StudentId.ToLower() == studentCreateDto.StudentId) != null)
             {
                 _logger.Log($"StudentID {studentCreateDto.StudentId} already exists", "error");
                 ModelState.AddModelError("", "StudentId is Exists");
@@ -102,13 +98,13 @@ namespace StudentManagementAPI.Controllers
             }
 
             var studentObj = _mapper.Map<Student>(studentCreateDto);
-            if(!_studentRepo.CreateStudent(studentObj))
-            {
-                _logger.Log($"Student can't be created!", "error");
-                ModelState.AddModelError("", $"Something went wrong when saving record {studentObj.StudentId}");
-                return StatusCode(500, ModelState);
-            }
-            //return Created("GetStudent", studentObj.Id);
+            // if(!_studentRepo.CreateStudent(studentObj))
+            // {
+            //     _logger.Log($"Student can't be created!", "error");
+            //     ModelState.AddModelError("", $"Something went wrong when saving record {studentObj.StudentId}");
+            //     return StatusCode(500, ModelState);
+            // }
+            await _studentRepo.CreateAsync(studentObj);
             _logger.Log($"Created Student is {studentObj.Id}", "info");
             return CreatedAtRoute("GetStudent", new
             {
@@ -132,7 +128,7 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(204)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult UpdateStudent(int studentId, [FromBody] StudentDto studentDto)
+        public async Task<IActionResult> UpdateStudent(int studentId, [FromBody] StudentDto studentDto)
         {
             if(studentDto == null|| studentId != studentDto.Id)
             {
@@ -142,12 +138,13 @@ namespace StudentManagementAPI.Controllers
 
             var studentObj = _mapper.Map<Student>(studentDto);
 
-            if(!_studentRepo.UpdateStudent(studentObj))
-            {
-                _logger.Log($"Student can't be updated!", "error");
-                ModelState.AddModelError("",$"Something went wrong when saving record {studentObj.Id}");
-                return StatusCode(500, ModelState);
-            }
+            // if(!_studentRepo.UpdateStudent(studentObj))
+            // {
+            //     _logger.Log($"Student can't be updated!", "error");
+            //     ModelState.AddModelError("",$"Something went wrong when saving record {studentObj.Id}");
+            //     return StatusCode(500, ModelState);
+            // }
+            await _studentRepo.UpdateAsync(studentObj);
             _logger.Log($"Updated Student Id: {studentObj.Id} successfully!", "info");
             return NoContent();
         }
@@ -162,7 +159,7 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult DeleteStudent(int studentId)
+        public async Task<IActionResult> DeleteStudent(int studentId)
         {
             // if(studentId == null)
             // {
@@ -170,14 +167,14 @@ namespace StudentManagementAPI.Controllers
             //     return NotFound();
             // }
 
-            var studentObj = _studentRepo.GetStudent(studentId);
-            if(!_studentRepo.DeleteStudent(studentObj))
-            {
-                _logger.Log($"Student can't be deleted!", "error");
-                ModelState.AddModelError("",$"Something went wrong when deleting record {studentObj.Id}");
-                return StatusCode(500, ModelState);
-            }
-
+            var studentObj = await _studentRepo.GetAsync(u => u.Id == studentId);
+            // if(!_studentRepo.DeleteStudent(studentObj))
+            // {
+            //     _logger.Log($"Student can't be deleted!", "error");
+            //     ModelState.AddModelError("",$"Something went wrong when deleting record {studentObj.Id}");
+            //     return StatusCode(500, ModelState);
+            // }
+            await _studentRepo.RemoveAsync(studentObj);
             _logger.Log($"Deleted Student Id: {studentId} successfully!", "info");
             return NoContent();
         }
