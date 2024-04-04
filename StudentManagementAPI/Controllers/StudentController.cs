@@ -1,4 +1,5 @@
 using AutoMapper;
+using System.Net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,7 @@ namespace StudentManagementAPI.Controllers
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public class StudentController : ControllerBase
     {
+        protected APIResponse _response;
         private IStudentRepository _studentRepo;
         private readonly IMapper _mapper;
         private ILogging _logger;
@@ -27,21 +29,37 @@ namespace StudentManagementAPI.Controllers
             _studentRepo = studentRepo;
             _logger = logger;
             _mapper = mapper;
+            this._response = new();
         }
         /// <summary>
         ///  Gets All Student
         /// </summary>
         /// <returns></returns>
         [HttpGet]
-        [ProducesResponseType(200, Type = typeof(List<StudentDto>))]
-        public async Task<ActionResult<IEnumerable<StudentDto>>> GetStudents()
+        //[ProducesResponseType(200, Type = typeof(List<StudentDto>))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<ActionResult<APIResponse>> GetStudents()
         {
-            var studentList = await _studentRepo.GetAllAsync();
-            var studentDto = new List<StudentDto>();
+            try
+            {
+                IEnumerable<Student> studentList = await _studentRepo.GetAllAsync();
+                _response.Result = _mapper.Map<List<StudentDto>>(studentList);
+                _response.StatusCode = HttpStatusCode.OK;
+                _logger.Log("Get all students", "info");
 
-            studentDto = _mapper.Map<List<StudentDto>>(studentList);
-            _logger.Log("Get all students", "info");
-            return Ok(studentDto);
+                return Ok(_response);
+            }
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
+            }
+
+            return _response;
         }
         /// <summary>
         /// Get Specific Student By Id
@@ -49,22 +67,40 @@ namespace StudentManagementAPI.Controllers
         /// <param name="studentId">the id of student</param>
         /// <returns></returns>
         [HttpGet("{studentId:int}", Name = "GetStudent")]
-        [ProducesResponseType(200, Type = typeof(StudentDto))]
+        //[ProducesResponseType(200, Type = typeof(StudentDto))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(404)]
         [Authorize]
         [ProducesDefaultResponseType]
-        public async Task<ActionResult<StudentDto>> GetStudent(int studentId)
+        public async Task<ActionResult<APIResponse>> GetStudent(int studentId)
         {
-            var studentObj = await _studentRepo.GetAsync(u => u.Id == studentId);
-
-            if(studentObj == null)
+            try
             {
-                _logger.Log($"Student id {studentId} not exists", "error");
-                return NotFound();
+                Student studentObj = await _studentRepo.GetAsync(u => u.Id == studentId);
+
+                if(studentObj == null)
+                {
+                    _response.StatusCode = HttpStatusCode.NotFound;
+                    _logger.Log($"Student id {studentId} not exists", "error");
+                    return NotFound(_response);
+                }
+
+                _response.Result = _mapper.Map<StudentDto>(studentObj);
+                _response.StatusCode = HttpStatusCode.OK;
+                _logger.Log($"Get student id {studentId}", "info");
+
+                return Ok(_response);
             }
-            var studentDto = _mapper.Map<StudentDto>(studentObj);
-            _logger.Log($"Get student id {studentId}", "info");
-            return Ok(studentDto);
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
+            }
+            return _response;
         }
         /// <summary>
         ///  Create a new student
@@ -72,44 +108,55 @@ namespace StudentManagementAPI.Controllers
         /// <param name="studentCreateDto"></param>
         /// <returns></returns>
         [HttpPost]
-        [ProducesResponseType(201, Type = typeof(StudentDto))]
+        //[ProducesResponseType(201, Type = typeof(StudentDto))]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<StudentDto>> CreateStudent([FromBody] StudentCreateDto studentCreateDto)
+        public async Task<ActionResult<APIResponse>> CreateStudent([FromBody] StudentCreateDto studentCreateDto)
         {
-            if(studentCreateDto == null)
+            try
             {
-                _logger.Log($"Not having Student to creating", "error");
-                return BadRequest(ModelState);
-            }
+                if(studentCreateDto == null)
+                {
+                    _logger.Log($"Not having Student to creating", "error");
+                    return BadRequest(studentCreateDto);
+                }
 
-            if(await _studentRepo.GetAsync(u => u.StudentId.ToLower() == studentCreateDto.StudentId) != null)
-            {
-                _logger.Log($"StudentID {studentCreateDto.StudentId} already exists", "error");
-                ModelState.AddModelError("", "StudentId is Exists");
-                return StatusCode(404, ModelState);
-            }
+                if(await _studentRepo.GetAsync(u => u.StudentId.ToLower() == studentCreateDto.StudentId.ToLower()) != null)
+                {
+                    _logger.Log($"StudentID {studentCreateDto.StudentId} already exists", "error");
+                    ModelState.AddModelError("", "StudentId is Exists");
+                    return BadRequest(ModelState);
+                }
 
-            if(!ModelState.IsValid)
-            {
-                _logger.Log($"Student needed to be created not valid!", "error");
-                return BadRequest(ModelState);
-            }
+                if(!ModelState.IsValid)
+                {
+                    _logger.Log($"Student needed to be created not valid!", "error");
+                    ModelState.AddModelError("", "StudentId is not Valid");
+                    return BadRequest(ModelState);
+                }
 
-            var studentObj = _mapper.Map<Student>(studentCreateDto);
-            // if(!_studentRepo.CreateStudent(studentObj))
-            // {
-            //     _logger.Log($"Student can't be created!", "error");
-            //     ModelState.AddModelError("", $"Something went wrong when saving record {studentObj.StudentId}");
-            //     return StatusCode(500, ModelState);
-            // }
-            await _studentRepo.CreateAsync(studentObj);
-            _logger.Log($"Created Student is {studentObj.Id}", "info");
-            return CreatedAtRoute("GetStudent", new
+                Student studentObj = _mapper.Map<Student>(studentCreateDto);
+                await _studentRepo.CreateAsync(studentObj);
+
+                _response.Result = _mapper.Map<StudentDto>(studentObj);
+                _response.StatusCode = HttpStatusCode.Created;
+                _logger.Log($"Created Student is {studentObj.Id}", "info");
+                return CreatedAtRoute("GetStudent", new
+                {
+                    studentId = studentObj.Id
+                }, _response);
+            }
+            catch (Exception exception)
             {
-                studentId = studentObj.Id
-            }, studentObj);
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
+            }
+            return _response;
             // return CreatedAtRoute("GetStudent", new
             // {
             //     version = HttpContext.GetRequestedApiVersion().ToString(),
@@ -128,25 +175,35 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(204)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateStudent(int studentId, [FromBody] StudentDto studentDto)
+        public async Task<ActionResult<APIResponse>> UpdateStudent(int studentId, [FromBody] StudentDto studentDto)
         {
-            if(studentDto == null|| studentId != studentDto.Id)
+            try
             {
-                _logger.Log($"Not having Student to updating", "error");
-                return BadRequest(ModelState);
+                if(studentDto == null|| studentId != studentDto.Id)
+                {
+                    _logger.Log($"Not having Student to updating", "error");
+                    return BadRequest(ModelState);
+                }
+                Student studentObj = _mapper.Map<Student>(studentDto);
+                await _studentRepo.UpdateAsync(studentObj);
+
+                _response.StatusCode = HttpStatusCode.NoContent;
+                _response.IsSuccess = true;
+
+                _logger.Log($"Updated Student Id: {studentObj.Id} successfully!", "info");
+                return Ok(_response);
+            }
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
             }
 
-            var studentObj = _mapper.Map<Student>(studentDto);
-
-            // if(!_studentRepo.UpdateStudent(studentObj))
-            // {
-            //     _logger.Log($"Student can't be updated!", "error");
-            //     ModelState.AddModelError("",$"Something went wrong when saving record {studentObj.Id}");
-            //     return StatusCode(500, ModelState);
-            // }
-            await _studentRepo.UpdateAsync(studentObj);
-            _logger.Log($"Updated Student Id: {studentObj.Id} successfully!", "info");
-            return NoContent();
+            return _response;
         }
 
         /// <summary>
@@ -159,24 +216,36 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteStudent(int studentId)
+        public async Task<ActionResult<APIResponse>> DeleteStudent(int studentId)
         {
-            // if(studentId == null)
-            // {
-            //     _logger.LogError($"Student id {studentId} not exists");
-            //     return NotFound();
-            // }
+            try
+            {
+                var studentObj = await _studentRepo.GetAsync(u => u.Id == studentId);
 
-            var studentObj = await _studentRepo.GetAsync(u => u.Id == studentId);
-            // if(!_studentRepo.DeleteStudent(studentObj))
-            // {
-            //     _logger.Log($"Student can't be deleted!", "error");
-            //     ModelState.AddModelError("",$"Something went wrong when deleting record {studentObj.Id}");
-            //     return StatusCode(500, ModelState);
-            // }
-            await _studentRepo.RemoveAsync(studentObj);
-            _logger.Log($"Deleted Student Id: {studentId} successfully!", "info");
-            return NoContent();
+                if(studentObj == null)
+                {
+                    return NotFound();
+                }
+
+                await _studentRepo.RemoveAsync(studentObj);
+
+                _response.StatusCode = HttpStatusCode.NoContent;
+                _response.IsSuccess = true;
+
+                _logger.Log($"Deleted Student Id: {studentId} successfully!", "info");
+                return Ok(_response);
+            }
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
+            }
+
+            return _response;
         }
     }
 }
