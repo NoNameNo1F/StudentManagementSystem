@@ -1,3 +1,4 @@
+using System.Net;
 using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -14,6 +15,7 @@ namespace StudentManagementAPI.Controllers
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public class CourseController : ControllerBase
     {
+        protected APIResponse _response;
         private ICourseRepository _courseRepo;
         private readonly IMapper _mapper;
         private ILogging _logger;
@@ -26,20 +28,39 @@ namespace StudentManagementAPI.Controllers
             _courseRepo = courseRepo;
             _logger = logger;
             _mapper = mapper;
+            this._response = new();
         }
         /// <summary>
         /// Gets All Course
         /// </summary>
         /// <returns>List of Course</returns>
         [HttpGet]
-        [ProducesResponseType(200, Type = typeof(List<CourseDto>))]
-        public async Task<ActionResult<IEnumerable<CourseDto>>> GetCourses()
+        //[ProducesResponseType(200, Type = typeof(List<CourseDto>))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<ActionResult<APIResponse>> GetCourses()
         {
-            var courseList = await _courseRepo.GetAllAsync();
-            var courseDto = _mapper.Map<List<CourseDto>>(courseList);
+            try
+            {
+                IEnumerable<Course> courseList = await _courseRepo.GetAllAsync();
 
-            _logger.Log("Get all courses","info");
-            return Ok(courseDto);
+                _response.Result = _mapper.Map<List<CourseDto>>(courseList);
+                _response.StatusCode = HttpStatusCode.OK;
+
+                _logger.Log("Get all courses","info");
+                return Ok(_response);
+            }
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
+            }
+
+            return _response;
+
         }
         /// <summary>
         /// Get Specific Course By Id
@@ -47,23 +68,42 @@ namespace StudentManagementAPI.Controllers
         /// <param name="courseId">id of course</param>
         /// <returns></returns>
         [HttpGet("{courseId:int}", Name = "GetCourse")]
-        [ProducesResponseType(200, Type = typeof(CourseDto))]
+        //[ProducesResponseType(200, Type = typeof(CourseDto))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(404)]
         [Authorize]
         [ProducesDefaultResponseType]
-        public async Task<ActionResult<CourseDto>> GetCourse(int courseId)
+        public async Task<ActionResult<APIResponse>> GetCourse(int courseId)
         {
-            var courseObj = await _courseRepo.GetAsync(u => u.Id == courseId);
-
-            if(courseObj == null)
+            try
             {
-                _logger.Log($"Course id {courseId} not exists","error");
-                return NotFound();
+                Course courseObj = await _courseRepo.GetAsync(u => u.Id == courseId);
+
+                if(courseObj == null)
+                {
+                    _logger.Log($"Course id {courseId} not exists","error");
+                    _response.StatusCode = HttpStatusCode.NotFound;
+                    return NotFound(_response);
+                }
+
+                _response.Result = _mapper.Map<CourseDto>(courseObj);
+                _response.StatusCode = HttpStatusCode.OK;
+
+                _logger.Log($"Get course id {courseId}", "info");
+                return Ok(_response);
+            }
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
             }
 
-            var coursetDto = _mapper.Map<CourseDto>(courseObj);
-            _logger.Log($"Get course id {courseId}", "info");
-            return Ok(coursetDto);
+            return _response;
+
         }
         /// <summary>
         /// Create a new course
@@ -71,44 +111,57 @@ namespace StudentManagementAPI.Controllers
         /// <param name="courseCreateDto"></param>
         /// <returns></returns>
         [HttpPost]
-        [ProducesResponseType(201, Type = typeof(CourseDto))]
+        //[ProducesResponseType(201, Type = typeof(CourseDto))]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<CourseDto>> CreateCourse([FromBody] CourseCreateDto courseCreateDto)
+        public async Task<ActionResult<APIResponse>> CreateCourse([FromBody] CourseCreateDto courseCreateDto)
         {
-            if(courseCreateDto == null)
+            try
             {
-                _logger.Log($"Not having Course to creating", "error");
-                return BadRequest(ModelState);
+                if(courseCreateDto == null)
+                {
+                    _logger.Log($"Not having Course to creating", "error");
+                    return BadRequest(ModelState);
+                }
+
+                if(await _courseRepo.GetAsync(u => u.Name.ToLower() == courseCreateDto.Name.ToLower()) != null)
+                {
+                    _logger.Log($"Course Name {courseCreateDto.Name} already exists", "error");
+                    ModelState.AddModelError("", "CourseName is Exists");
+                    return BadRequest(ModelState);
+                }
+
+                if(!ModelState.IsValid)
+                {
+                    _logger.Log($"Course needed to be created not valid!", "error");
+                    ModelState.AddModelError("", "CourseId is not Valid");
+                    return BadRequest(ModelState);
+                }
+
+                Course courseObj = _mapper.Map<Course>(courseCreateDto);
+                await _courseRepo.CreateAsync(courseObj);
+
+                _response.Result = _mapper.Map<CourseDto>(courseObj);
+                _response.StatusCode = HttpStatusCode.Created;
+
+                _logger.Log($"Created Course is {courseObj.Id}", "info");
+                return CreatedAtRoute("GetCourse", new
+                {
+                    courseId = courseObj.Id
+                }, _response);
+            }
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}","error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
             }
 
-            if(await _courseRepo.GetAsync(u => u.Name.ToLower() == courseCreateDto.Name.ToLower()) != null)
-            {
-                _logger.Log($"Course Name {courseCreateDto.Name} already exists", "error");
-                ModelState.AddModelError("", "CourseName is Exists");
-                return StatusCode(404, ModelState);
-            }
-
-            if(!ModelState.IsValid)
-            {
-                _logger.Log($"Course needed to be created not valid!", "error");
-                return BadRequest(ModelState);
-            }
-
-            var courseObj = _mapper.Map<Course>(courseCreateDto);
-            // if(!_courseRepo.CreateCourse(courseObj))
-            // {
-            //     _logger.Log($"Course can't be created!", "error");
-            //     ModelState.AddModelError("", $"Something went wrong when saving record {courseObj.Name}");
-            //     return StatusCode(500, ModelState);
-            // }
-            await _courseRepo.CreateAsync(courseObj);
-            _logger.Log($"Created Course is {courseObj.Id}", "info");
-            return CreatedAtRoute("GetCourse", new
-            {
-                courseId = courseObj.Id
-            }, courseObj);
+            return _response;
         }
         /// <summary>
         /// Edit Course by id
@@ -120,20 +173,37 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(204)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateCourse(int courseId, [FromBody] CourseDto courseDto)
+        public async Task<ActionResult<APIResponse>> UpdateCourse(int courseId, [FromBody] CourseDto courseDto)
         {
-            if(courseDto == null|| courseId != courseDto.Id)
+            try
             {
-                _logger.Log($"Not having Course to updating", "error");
-                return BadRequest(ModelState);
+                if(courseDto == null|| courseId != courseDto.Id)
+                {
+                    _logger.Log($"Not having Course to updating", "error");
+                    return BadRequest(ModelState);
+                }
+
+                Course courseObj = _mapper.Map<Course>(courseDto);
+
+                await _courseRepo.UpdateAsync(courseObj);
+
+                _response.StatusCode = HttpStatusCode.NoContent;
+                _response.IsSuccess = true;
+
+                _logger.Log($"Updated Course Id: {courseObj.Id} successfully!", "info");
+                return Ok(_response);
+            }
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
             }
 
-            var courseObj = _mapper.Map<Course>(courseDto);
-
-            await _courseRepo.UpdateAsync(courseObj);
-
-            _logger.Log($"Updated Course Id: {courseObj.Id} successfully!", "info");
-            return NoContent();
+            return _response;
         }
         /// <summary>
         /// Delete a course by id
@@ -145,25 +215,36 @@ namespace StudentManagementAPI.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteCourse(int courseId)
+        public async Task<ActionResult<APIResponse>> DeleteCourse(int courseId)
         {
-            if(courseId == 0)
+            try
             {
-                _logger.Log($"Not having courseId", "error");
-                return BadRequest();
+                var courseObj = await _courseRepo.GetAsync(u => u.Id == courseId);
+                if(courseObj == null)
+                {
+                    _logger.Log($"Course id {courseId} not exists", "error");
+                    return NotFound();
+                }
+
+                await _courseRepo.RemoveAsync(courseObj);
+
+                _response.StatusCode = HttpStatusCode.NoContent;
+                _response.IsSuccess = true;
+
+                _logger.Log($"Deleted Course Id: {courseId} successfully!", "info");
+                return Ok(_response);
+            }
+            catch (Exception exception)
+            {
+                _logger.Log($"{exception}", "error");
+                _response.IsSuccess = false;
+                _response.ErrorMessages = new List<string>()
+                {
+                    exception.ToString()
+                };
             }
 
-            var courseObj = await _courseRepo.GetAsync(u => u.Id == courseId);
-            if(courseObj == null)
-            {
-                _logger.Log($"Course id {courseId} not exists", "error");
-                return NotFound();
-            }
-
-            await _courseRepo.RemoveAsync(courseObj);
-
-            _logger.Log($"Deleted Course Id: {courseId} successfully!", "info");
-            return NoContent();
+            return _response;
         }
     }
 }
